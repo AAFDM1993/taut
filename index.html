@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cuestionario UTAUT</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A9%BA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root{
@@ -267,9 +268,22 @@ function renderVersion(role, roleLabel){
 document.getElementById("version-docente").innerHTML = renderVersion("docente", "Docentes / terapeutas clínicos");
 document.getElementById("version-estudiante").innerHTML = renderVersion("estudiante", "Estudiantes");
 
+function setControlsDisabled(container, disabled){
+  container.querySelectorAll("input, select, textarea").forEach(function(el){ el.disabled = disabled; });
+}
+
+// Ambas secciones inician deshabilitadas: sus campos "required" no deben
+// bloquear la validación del formulario hasta que se elija un rol.
+setControlsDisabled(document.getElementById("version-docente"), true);
+setControlsDisabled(document.getElementById("version-estudiante"), true);
+
 function setRole(role){
-  document.getElementById("version-docente").hidden = role !== "docente";
-  document.getElementById("version-estudiante").hidden = role !== "estudiante";
+  const docenteEl = document.getElementById("version-docente");
+  const estudianteEl = document.getElementById("version-estudiante");
+  docenteEl.hidden = role !== "docente";
+  estudianteEl.hidden = role !== "estudiante";
+  setControlsDisabled(docenteEl, role !== "docente");
+  setControlsDisabled(estudianteEl, role !== "estudiante");
   document.getElementById("submitCard").hidden = false;
 }
 
