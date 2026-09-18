@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel de resultados UTAUT</title>
+<style>
+  :root{
+    --bg:#f4f6f2; --surface:#ffffff; --ink:#1b2420; --ink-soft:#4d584f;
+    --primary:#0b5e59; --primary-soft:#e2efec; --accent:#a86a20;
+    --border:#d7ddd2; --danger:#a13b2d; --ok:#2f7a3d;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Arial,sans-serif;padding:24px 16px 60px;}
+  .wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:20px;}
+  h1{font-size:1.4rem;margin:0;}
+  h2{font-size:1.05rem;color:var(--primary);margin:0 0 10px;}
+  p{margin:0;color:var(--ink-soft);font-size:.92rem;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:220px;}
+  .field label{font-size:.8rem;color:var(--ink-soft);}
+  .field input{padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-size:.9rem;}
+  button{
+    background:var(--primary);color:#fff;border:none;border-radius:8px;
+    padding:10px 18px;font-size:.9rem;cursor:pointer;font-weight:600;
+  }
+  button:hover{opacity:.92;}
+  .status{font-size:.85rem;padding:8px 10px;border-radius:8px;display:none;}
+  .status.err{background:#fbe9e6;color:var(--danger);display:block;}
+  .status.ok{background:var(--primary-soft);color:var(--primary);display:block;}
+  table{border-collapse:collapse;width:100%;font-size:.85rem;}
+  th,td{border-bottom:1px solid var(--border);padding:7px 8px;text-align:center;}
+  th{background:var(--primary-soft);color:var(--primary);font-weight:600;}
+  td.left,th.left{text-align:left;}
+  .table-scroll{overflow-x:auto;}
+  .cols-preview{font-family:monospace;font-size:.75rem;background:#f0f2ee;border-radius:8px;padding:10px;max-height:140px;overflow:auto;white-space:pre-wrap;}
+  .comment-box{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;}
+  .comment{background:#f0f2ee;border-radius:8px;padding:8px 10px;font-size:.85rem;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:600;}
+  .badge.good{background:#e3f3e5;color:var(--ok);}
+  .badge.bad{background:#fbe9e6;color:var(--danger);}
+  .badge.warn{background:#fbf0dd;color:var(--accent);}
+  details summary{cursor:pointer;font-size:.85rem;color:var(--ink-soft);margin-top:8px;}
+  .note{font-size:.78rem;color:var(--ink-soft);margin-top:8px;}
+  [hidden]{display:none!important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div>
+    <h1>Panel de resultados — cuestionario UTAUT</h1>
+    <p>Lee en vivo las respuestas de tu formulario de Google (a través de la hoja de cálculo vinculada) y calcula el alfa de Cronbach, los promedios por constructo y la comparación entre docentes y estudiantes.</p>
+  </div>
+
+  <section class="card">
+    <h2>1. Conectar la hoja de cálculo</h2>
+    <p style="margin-bottom:10px;">
+      En Google Sheets: <strong>Archivo → Compartir → Publicar en la web</strong>, publica toda la hoja de respuestas.
+      Luego copia aquí el ID de la hoja (la parte de la URL entre <code>/d/</code> y <code>/edit</code>).
+    </p>
+    <div class="row">
+      <div class="field">
+        <label for="sheetId">ID de la hoja de Google Sheets</label>
+        <input id="sheetId" type="text" placeholder="Ej. 1AbCDefGhIjKLmnoPQRstuVWXyz1234567890">
+      </div>
+      <div class="field" style="max-width:200px;">
+        <label for="gid">gid de la pestaña (opcional)</label>
+        <input id="gid" type="text" placeholder="0">
+      </div>
+      <button onclick="cargarDatos()">Cargar datos</button>
+    </div>
+    <div id="status" class="status"></div>
+    <details>
+      <summary>Ver columnas detectadas en la hoja</summary>
+      <div id="colsPreview" class="cols-preview">Aún no se han cargado datos.</div>
+    </details>
+  </section>
+
+  <section class="card" id="resumenCard" hidden>
+    <h2>2. Tamaño de muestra recolectado</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th class="left">Grupo</th><th>Respuestas válidas</th><th>Meta (censo)</th><th>% recolectado</th></tr></thead>
+        <tbody id="resumenBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="fiabilidadCard" hidden>
+    <h2>3. Fiabilidad del instrumento (alfa de Cronbach)</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th class="left">Constructo</th><th>α Docentes</th><th>α Estudiantes</th></tr></thead>
+        <tbody id="fiabilidadBody"></tbody>
+      </table>
+    </div>
+    <p class="note">α ≥ 0.70 se considera aceptable. Con muestras pequeñas (grupo docente) el alfa puede ser inestable; interprétalo con cautela.</p>
+  </section>
+
+  <section class="card" id="comparacionCard" hidden>
+    <h2>4. Comparación por constructo (Docentes vs. Estudiantes)</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th class="left">Constructo</th><th>Media Doc. (DE)</th><th>Media Est. (DE)</th><th>U de Mann-Whitney</th><th>z</th><th>p (aprox.)</th><th>Interpretación</th></tr>
+        </thead>
+        <tbody id="comparacionBody"></tbody>
+      </table>
+    </div>
+    <p class="note">El valor p se calcula con aproximación normal (sin corrección exacta por empates), adecuada para exploración. Para el artículo final, verifica estos resultados con un paquete estadístico (SPSS, jamovi o R), especialmente por el n reducido de docentes.</p>
+  </section>
+
+  <section class="card" id="usoCard" hidden>
+    <h2>5. Frecuencia de uso reportada</h2>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th class="left">Frecuencia</th><th>Docentes</th><th>Estudiantes</th></tr></thead>
+        <tbody id="usoBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" id="comentariosCard" hidden>
+    <h2>6. Comentarios abiertos</h2>
+    <div class="row" style="gap:20px;align-items:flex-start;">
+      <div style="flex:1;min-width:260px;">
+        <p style="margin-bottom:6px;font-weight:600;color:var(--ink);">Docentes</p>
+        <div id="comentariosDocente" class="comment-box"></div>
+      </div>
+      <div style="flex:1;min-width:260px;">
+        <p style="margin-bottom:6px;font-weight:600;color:var(--ink);">Estudiantes</p>
+        <div id="comentariosEstudiante" class="comment-box"></div>
+      </div>
+    </div>
+  </section>
+
+  <details class="card">
+    <summary>Convención de encabezados que debe tener tu hoja (haz clic para ver)</summary>
+    <p style="margin:10px 0;">
+      Google Forms usa el texto de la pregunta como encabezado de columna. Para que este panel funcione,
+      renombra la fila 1 de tu hoja de respuestas con estos nombres exactos (no cambia tus datos, solo los títulos de columna):
+    </p>
+    <div class="cols-preview" id="convencion"></div>
+  </details>
+
+</div>
+
+<script>
+const ROL_COL = "Rol";
+
+const CONSTRUCTS = [
+  { code:"ED", name:"Expectativa de desempeño", n:4 },
+  { code:"EE", name:"Expectativa de esfuerzo", n:4 },
+  { code:"IS", name:"Influencia social", n:4 },
+  { code:"CF", name:"Condiciones facilitadoras", n:4 },
+  { code:"IU", name:"Intención de uso", n:3 },
+];
+
+const META = { docente: 9, estudiante: 60 };
+const FREQ_OPTIONS = ["Diaria","3–4 veces por semana","1–2 veces por semana","Ocasional"];
+
+function expectedColumns(prefix, isDocente){
+  const cols = [ROL_COL];
+  if(isDocente){
+    cols.push(prefix+"edad", prefix+"sexo", prefix+"cargo", prefix+"exp_prof",
+      prefix+"exp_docente", prefix+"tiempo_uso");
+  } else {
+    cols.push(prefix+"edad", prefix+"sexo", prefix+"semestre",
+      prefix+"exp_previa", prefix+"tiempo_uso");
+  }
+  CONSTRUCTS.forEach(c => { for(let i=1;i<=c.n;i++) cols.push(prefix+c.code+i); });
+  cols.push(prefix+"frecuencia", prefix+"comparativo", prefix+"comentario");
+  return cols;
+}
+
+document.getElementById("convencion").textContent =
+  "Docentes (prefijo docente_):\n" + expectedColumns("docente_", true).join(", ") +
+  "\n\nEstudiantes (prefijo estudiante_):\n" + expectedColumns("estudiante_", false).join(", ");
+
+function mean(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function variance(arr){
+  if(arr.length < 2) return 0;
+  const m = mean(arr);
+  return arr.reduce((s,x)=>s+(x-m)*(x-m),0)/(arr.length-1);
+}
+function sd(arr){ return Math.sqrt(variance(arr)); }
+
+function cronbachAlpha(itemColumns){
+  // itemColumns: array of arrays (one per item), same length, numeric, no nulls
+  const k = itemColumns.length;
+  if(k < 2 || itemColumns[0].length < 2) return null;
+  const itemVars = itemColumns.map(variance);
+  const n = itemColumns[0].length;
+  const totals = [];
+  for(let i=0;i<n;i++){
+    let s = 0;
+    for(let j=0;j<k;j++) s += itemColumns[j][i];
+    totals.push(s);
+  }
+  const totalVar = variance(totals);
+  if(totalVar === 0) return null;
+  const sumItemVar = itemVars.reduce((a,b)=>a+b,0);
+  return (k/(k-1)) * (1 - sumItemVar/totalVar);
+}
+
+function erf(x){
+  const sign = x < 0 ? -1 : 1; x = Math.abs(x);
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const t = 1/(1+p*x);
+  const y = 1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+function normalCdf(z){ return 0.5*(1+erf(z/Math.sqrt(2))); }
+
+function mannWhitneyU(a, b){
+  if(a.length === 0 || b.length === 0) return null;
+  const combined = a.map(v=>({v,g:"a"})).concat(b.map(v=>({v,g:"b"})));
+  combined.sort((x,y)=>x.v-y.v);
+  const ranks = new Array(combined.length);
+  let i = 0;
+  while(i < combined.length){
+    let j = i;
+    while(j < combined.length && combined[j].v === combined[i].v) j++;
+    const avgRank = (i+1+j)/2;
+    for(let k=i;k<j;k++) ranks[k] = avgRank;
+    i = j;
+  }
+  let rankSumA = 0;
+  combined.forEach((c,idx)=>{ if(c.g === "a") rankSumA += ranks[idx]; });
+  const n1 = a.length, n2 = b.length;
+  const U1 = rankSumA - n1*(n1+1)/2;
+  const U2 = n1*n2 - U1;
+  const U = Math.min(U1, U2);
+  const meanU = n1*n2/2;
+  const sdU = Math.sqrt(n1*n2*(n1+n2+1)/12);
+  if(sdU === 0) return { U, z:0, p:1 };
+  const z = (U - meanU) / sdU;
+  const p = 2 * (1 - normalCdf(Math.abs(z)));
+  return { U, z, p };
+}
+
+function gvizUrl(sheetId, gid){
+  let url = "https://docs.google.com/spreadsheets/d/" + sheetId + "/gviz/tq?tqx=out:json";
+  if(gid) url += "&gid=" + encodeURIComponent(gid);
+  return url;
+}
+
+function parseGviz(text){
+  const start = text.indexOf("(") + 1;
+  const end = text.lastIndexOf(")");
+  const json = JSON.parse(text.substring(start, end));
+  const cols = json.table.cols.map(c => (c.label || c.id || "").trim());
+  const rows = json.table.rows.map(r => cols.map((_, idx) => {
+    const cell = r.c[idx];
+    if(!cell) return "";
+    return (cell.f !== undefined && cell.f !== null) ? cell.f : (cell.v ?? "");
+  }));
+  return { cols, rows };
+}
+
+function setStatus(msg, kind){
+  const el = document.getElementById("status");
+  el.textContent = msg;
+  el.className = "status " + (kind || "");
+}
+
+function toNum(v){
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+function colIndex(cols, name){ return cols.indexOf(name); }
+
+async function cargarDatos(){
+  const sheetId = document.getElementById("sheetId").value.trim();
+  const gid = document.getElementById("gid").value.trim();
+  if(!sheetId){ setStatus("Ingresa el ID de la hoja de cálculo.", "err"); return; }
+  setStatus("Cargando datos…", "");
+  try{
+    const res = await fetch(gvizUrl(sheetId, gid));
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    const { cols, rows } = parseGviz(text);
+    document.getElementById("colsPreview").textContent = cols.join(", ");
+
+    const rolIdx = colIndex(cols, ROL_COL);
+    if(rolIdx === -1){
+      setStatus('No se encontró la columna "' + ROL_COL + '". Revisa el nombre exacto del encabezado.', "err");
+      return;
+    }
+
+    const objRows = rows.map(r => {
+      const o = {};
+      cols.forEach((c, i) => o[c] = r[i]);
+      return o;
+    });
+
+    const docentes = objRows.filter(o => (o[ROL_COL]||"").toString().toLowerCase().startsWith("docente"));
+    const estudiantes = objRows.filter(o => (o[ROL_COL]||"").toString().toLowerCase().startsWith("estudiante"));
+
+    setStatus("Datos cargados: " + docentes.length + " docentes, " + estudiantes.length + " estudiantes.", "ok");
+
+    renderResumen(docentes.length, estudiantes.length);
+    renderFiabilidadYComparacion(docentes, estudiantes);
+    renderUso(docentes, estudiantes);
+    renderComentarios(docentes, estudiantes);
+
+  } catch(err){
+    setStatus("No se pudo cargar la hoja. Verifica que esté publicada en la web y que el ID sea correcto. (" + err.message + ")", "err");
+  }
+}
+
+function renderResumen(nDoc, nEst){
+  document.getElementById("resumenCard").hidden = false;
+  const body = document.getElementById("resumenBody");
+  body.innerHTML = "";
+  [["Docentes", nDoc, META.docente], ["Estudiantes", nEst, META.estudiante]].forEach(([label,n,meta]) => {
+    const pct = ((n/meta)*100).toFixed(0);
+    body.innerHTML += "<tr><td class='left'>" + label + "</td><td>" + n + "</td><td>" + meta + "</td><td>" + pct + "%</td></tr>";
+  });
+}
+
+function itemColumnsFor(rows, prefix, code, n){
+  const cols = [];
+  for(let i=1;i<=n;i++){
+    const key = prefix + code + i;
+    const values = rows.map(r => toNum(r[key])).filter(v => v !== null);
+    cols.push(values);
+  }
+  // keep only listwise-complete respondents across these items
+  const minLen = Math.min(...cols.map(c => c.length));
+  return cols.map(c => c.slice(0, minLen));
+}
+
+function constructMeans(rows, prefix, code, n){
+  const values = [];
+  rows.forEach(r => {
+    const items = [];
+    for(let i=1;i<=n;i++){
+      const v = toNum(r[prefix+code+i]);
+      if(v !== null) items.push(v);
+    }
+    if(items.length === n) values.push(mean(items));
+  });
+  return values;
+}
+
+function renderFiabilidadYComparacion(docentes, estudiantes){
+  document.getElementById("fiabilidadCard").hidden = false;
+  document.getElementById("comparacionCard").hidden = false;
+  const fBody = document.getElementById("fiabilidadBody");
+  const cBody = document.getElementById("comparacionBody");
+  fBody.innerHTML = "";
+  cBody.innerHTML = "";
+
+  CONSTRUCTS.forEach(c => {
+    const itemsDoc = itemColumnsFor(docentes, "docente_", c.code, c.n);
+    const itemsEst = itemColumnsFor(estudiantes, "estudiante_", c.code, c.n);
+    const alphaDoc = cronbachAlpha(itemsDoc);
+    const alphaEst = cronbachAlpha(itemsEst);
+
+    fBody.innerHTML += "<tr><td class='left'>" + c.name + " (" + c.code + ")</td>" +
+      "<td>" + fmtAlpha(alphaDoc) + "</td>" +
+      "<td>" + fmtAlpha(alphaEst) + "</td></tr>";
+
+    const meansDoc = constructMeans(docentes, "docente_", c.code, c.n);
+    const meansEst = constructMeans(estudiantes, "estudiante_", c.code, c.n);
+    const mw = mannWhitneyU(meansDoc, meansEst);
+
+    let interp = "—";
+    let badge = "";
+    if(mw){
+      if(mw.p < 0.05){ interp = "Diferencia significativa"; badge = "<span class='badge bad'>p < .05</span>"; }
+      else { interp = "Sin diferencia significativa"; badge = "<span class='badge good'>p ≥ .05</span>"; }
+    }
+
+    cBody.innerHTML += "<tr><td class='left'>" + c.name + "</td>" +
+      "<td>" + fmtMeanSd(meansDoc) + "</td>" +
+      "<td>" + fmtMeanSd(meansEst) + "</td>" +
+      "<td>" + (mw ? mw.U.toFixed(1) : "—") + "</td>" +
+      "<td>" + (mw ? mw.z.toFixed(2) : "—") + "</td>" +
+      "<td>" + (mw ? mw.p.toFixed(3) : "—") + "</td>" +
+      "<td>" + badge + " " + interp + "</td></tr>";
+  });
+}
+
+function fmtAlpha(a){
+  if(a === null) return "—";
+  const cls = a >= 0.7 ? "good" : "warn";
+  return "<span class='badge " + cls + "'>" + a.toFixed(2) + "</span>";
+}
+function fmtMeanSd(arr){
+  if(arr.length === 0) return "—";
+  return mean(arr).toFixed(2) + " (" + sd(arr).toFixed(2) + ")";
+}
+
+function renderUso(docentes, estudiantes){
+  document.getElementById("usoCard").hidden = false;
+  const body = document.getElementById("usoBody");
+  body.innerHTML = "";
+  FREQ_OPTIONS.forEach(opt => {
+    const nDoc = docentes.filter(r => r["docente_frecuencia"] === opt).length;
+    const nEst = estudiantes.filter(r => r["estudiante_frecuencia"] === opt).length;
+    body.innerHTML += "<tr><td class='left'>" + opt + "</td><td>" + nDoc + "</td><td>" + nEst + "</td></tr>";
+  });
+}
+
+function renderComentarios(docentes, estudiantes){
+  document.getElementById("comentariosCard").hidden = false;
+  const docBox = document.getElementById("comentariosDocente");
+  const estBox = document.getElementById("comentariosEstudiante");
+  docBox.innerHTML = "";
+  estBox.innerHTML = "";
+  docentes.forEach(r => {
+    const c = (r["docente_comentario"]||"").toString().trim();
+    if(c) docBox.innerHTML += "<div class='comment'>" + c.replace(/</g,"&lt;") + "</div>";
+  });
+  estudiantes.forEach(r => {
+    const c = (r["estudiante_comentario"]||"").toString().trim();
+    if(c) estBox.innerHTML += "<div class='comment'>" + c.replace(/</g,"&lt;") + "</div>";
+  });
+  if(!docBox.innerHTML) docBox.innerHTML = "<p>Sin comentarios registrados.</p>";
+  if(!estBox.innerHTML) estBox.innerHTML = "<p>Sin comentarios registrados.</p>";
+}
+</script>
+</body>
+</html>
